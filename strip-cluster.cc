@@ -78,7 +78,7 @@ int main()
     }
   }
 
-  //  std::cout<<"nStrips "<<nStrips<<"nSeedStrips "<<nSeedStrips<<"nSeedStripsNC "<<nSeedStripsNC<<std::endl;
+    //std::cout<<"nStrips "<<nStrips<<"nSeedStrips "<<nSeedStrips<<"nSeedStripsNC "<<nSeedStripsNC<<std::endl;
 
   int *seedStripsNCIndex = (int *)_mm_malloc(nSeedStripsNC*sizeof(int), IDEAL_ALIGNMENT);
   int *clusterLastIndexLeft = (int *)_mm_malloc(nSeedStripsNC*sizeof(int), IDEAL_ALIGNMENT);
@@ -179,7 +179,7 @@ int main()
   std::cout<<"clustering time "<<end-start<<std::endl;
 #endif
 
-#pragma acc data copyout(trueCluster[0:nSeedStripsNC],	\
+//#pragma acc data copyout(trueCluster[0:nSeedStripsNC],	\
 			 clusterLastIndexLeft[0:nSeedStripsNC],	\
 			 clusterLastIndexRight[0:nSeedStripsNC],	\
 			 clusterADCs[0:256*nSeedStripsNC])

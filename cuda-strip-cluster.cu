@@ -277,6 +277,9 @@ k++;
 
 
 findBoundries<<<1,1>>>(nStrips, nSeedStripsNC,seedStripsNCIndex,clusterNoiseSquared,stripId_d,clusterLastIndexLeft,clusterLastIndexRight,adc_d,noise_d);
+for(int l=0; l<1000;l++){
+printf("clusterLIL[%d]: %d\n",l,clusterLastIndexLeft[l]);
+}
 //printf("test z\n");
 //  for (int i=0; i<nSeedStripsNC; i++) {
 //    clusterNoiseSquared[i] = 0.0;
@@ -315,6 +318,9 @@ findBoundries<<<1,1>>>(nStrips, nSeedStripsNC,seedStripsNCIndex,clusterNoiseSqua
 
 
 clusterChecker<<<1,1>>>(nSeedStripsNC,clusterLastIndexLeft,clusterLastIndexRight,adc_d, clusterNoiseSquared,gain_d, clusterADCs, trueCluster);
+//for(int l=0; l<1000;l++){
+//printf("cluster[%d]: %d\n",l,trueCluster[l]);
+//}
 //  // check if the candidate cluster is a true cluster
 //  // if so, do some adjustment for the adc values
 //  for (int i=0; i<nSeedStripsNC; i++){
