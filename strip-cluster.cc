@@ -68,14 +68,17 @@ int main()
   if (seedStripNCMask[0]) nSeedStripsNC++;
 #pragma omp parallel for reduction(+:nSeedStripsNC)
   for (int i=1; i<nStrips; i++) {
+	seedStripNCMask[i] == false;
     if (seedStripMask[i] == true) {
       if (stripId[i]-stripId[i-1]!=1||((stripId[i]-stripId[i-1]==1)&&!seedStripMask[i-1])) {
 	seedStripNCMask[i] = true;
 	nSeedStripsNC += static_cast<int>(seedStripNCMask[i]);
       }
     }
-  }
-
+}
+for (int i=0; i<nStrips;i++){
+printf("NCMask i n: %d %d\n",i, seedStripNCMask[i]); 
+}
   //  std::cout<<"nStrips "<<nStrips<<"nSeedStrips "<<nSeedStrips<<"nSeedStripsNC "<<nSeedStripsNC<<std::endl;
 
   int *seedStripsNCIndex = (int *)_mm_malloc(nSeedStripsNC*sizeof(int), IDEAL_ALIGNMENT);
@@ -112,7 +115,7 @@ printf("SeedStripsNC: %d\n",nSeedStripsNC);
     uint8_t adc_i = adc[index];
     float noise_i = noise[index];
     clusterNoiseSquared[i] += noise_i*noise_i;
-printf("noise i n: %d %f\n",i, noise_i*noise_i);
+//printf("noise i n: %d %f\n",i, noise_i*noise_i);
     // find left boundary
     int testIndex=index-1;
     while(index>0&&((stripId[clusterLastIndexLeft[i]]-stripId[testIndex]-1)>=0)&&((stripId[clusterLastIndexLeft[i]]-stripId[testIndex]-1)<=MaxSequentialHoles)){
@@ -137,9 +140,9 @@ printf("noise i n: %d %f\n",i, noise_i*noise_i);
       ++testIndex;
     }
   }
-for(int l=0; l<1000;l++){
-printf("clusterLIL[%d]: %d\n",l,clusterLastIndexLeft[l]);
-}
+//for(int l=0; l<1000;l++){
+//printf("clusterLIL[%d]: %d\n",l,clusterLastIndexLeft[l]);
+//}
   // check if the candidate cluster is a true cluster
   // if so, do some adjustment for the adc values
 #pragma omp parallel for

@@ -131,6 +131,7 @@ __global__ void getNCSeedStrips(const int nStrips,const float* noise,const uint1
    unsigned int i = threadIdx.x + blockIdx.x*blockDim.x;
   
 while(i<nStrips){
+	printf("x: %d\n",i);
     float noise_i = noise[i];
     uint8_t adc_i = static_cast<uint8_t>(adc[i]);
     seedStripMask[i] = (adc_i >= static_cast<uint8_t>( noise_i * SeedThreshold)) ? true:false;
@@ -144,7 +145,32 @@ while(i<nStrips){
   //seedStripNCMask[0] = seedStripMask[0];
   //if (seedStripNCMask[0]) nSeedStripsNC++;
 //#pragma omp parallel for reduction(+:nSeedStripsNC)
+}
+ i += blockDim.x*gridDim.x;
+}
 
+__global__ void getNCSeedStrips1(const int nStrips,const uint16_t* stripId, int* seedStripMask, int* seedStripNCMask)
+{
+ unsigned int i = threadIdx.x + blockIdx.x*blockDim.x;
+ if(i== 0){
+ seedStripNCMask[0] = seedStripMask[0];
+}
+else{ 
+while(i<nStrips){
+	printf("%d\n",i);
+        seedStripNCMask[i] == false;
+    if (seedStripMask[i] == true) {
+      if (stripId[i]-stripId[i-1]!=1||((stripId[i]-stripId[i-1]==1)&&!seedStripMask[i-1])) {
+        seedStripNCMask[i] = true;
+       // nSeedStripsNC += static_cast<int>(seedStripNCMask[i]);
+      }
+    }
+
+ i += blockDim.x*gridDim.x;
+}
+}
+}
+/*
 if(i!=0){
     seedStripNCMask[i] = false;
     if (seedStripMask[i] == true) { 
@@ -155,9 +181,8 @@ if(i!=0){
     } 
   }
 else{seedStripNCMask[0] = seedStripMask[0];}
- i += blockDim.x*gridDim.x;
-}
-}
+//printf("NCMask i n: %d %d\n",i, seedStripNCMask[i]);
+*/
 
 int main()
 {
@@ -254,6 +279,11 @@ int main()
 //getNCSeedStrips<<<32,128>>>(nStrips,noise_d,adc_d,nSeedStripsNC_d);
 getNCSeedStrips<<<128,128>>>(nStrips,noise_d,adc_d,stripId_d,seedStripMask,seedStripsNCMask);
 cudaDeviceSynchronize();
+getNCSeedStrips1<<<128,128>>>(nStrips,stripId_d,seedStripMask,seedStripsNCMask);
+cudaDeviceSynchronize();
+for( int i =0;i<nStrips;i++){
+printf("NCMask i n: %d %d\n",i, seedStripsNCMask[i]);
+}
 
 nSeedStripsNC=0;
 for(int l=0; l<nStrips;l++){
@@ -333,9 +363,9 @@ printf("done %d",nSeedStripsNC);
 
 
 findBoundries<<<1,1>>>(nStrips, nSeedStripsNC,seedStripsNCIndex,clusterNoiseSquared,stripId_d,clusterLastIndexLeft,clusterLastIndexRight,adc_d,noise_d);
-for(int l=0; l<1000;l++){
-printf("clusterLIL[%d]: %d\n",l,clusterLastIndexLeft[l]);
-}
+//for(int l=0; l<1000;l++){
+//printf("clusterLIL[%d]: %d\n",l,clusterLastIndexLeft[l]);
+//}
 //printf("test z\n");
 //  for (int i=0; i<nSeedStripsNC; i++) {
 //    clusterNoiseSquared[i] = 0.0;
