@@ -77,6 +77,7 @@ __global__ void findBoundries(int nStrips, int nSeedStripsNC,int* seedStripsNCIn
     //uint8_t adc_i = adc[index];
     float noise_i = noise[index];
     clusterNoiseSquared[i] += noise_i*noise_i;
+    printf("noise i n: %d %f\n",i, noise_i*noise_i);
     // find left boundary
     int testIndex=index-1;
     while(index>0&&((stripId[clusterLastIndexLeft[i]]-stripId[testIndex]-1)>=0)&&((stripId[clusterLastIndexLeft[i]]-stripId[testIndex]-1)<=MaxSequentialHoles)){
@@ -106,7 +107,7 @@ __global__ void findBoundries(int nStrips, int nSeedStripsNC,int* seedStripsNCIn
   }
 }
 
-//__global__ void getNCSeedStrips(const int nStrips,const float* noise_d,const uint16_t* adc,const int SeedThreshold,int* nSeedStripsNC_old)
+/*
 __global__ void getNCSeedStrips(const int nStrips,const float* noise_d,const uint16_t* adc,int* nSeedStripsNC_old)
 {
 
@@ -124,7 +125,39 @@ while(in<nStrips){
   }
 }
 
+*/
+__global__ void getNCSeedStrips(const int nStrips,const float* noise,const uint16_t* adc,const uint16_t* stripId, int* seedStripMask, int* seedStripNCMask)
+{
+   unsigned int i = threadIdx.x + blockIdx.x*blockDim.x;
+  
+while(i<nStrips){
+    float noise_i = noise[i];
+    uint8_t adc_i = static_cast<uint8_t>(adc[i]);
+    seedStripMask[i] = (adc_i >= static_cast<uint8_t>( noise_i * SeedThreshold)) ? true:false;
+ //   printf("test i n a b: %d %f %d %d\n",i,noise_i,adc_i,seedStripMask[i]); 
+  //  nSeedStrips += static_cast<int>(seedStripMask[i]);
+  //  in += blockDim.x*gridDim.x;
 
+//__syncthreads();
+  //int nSeedStripsNC=0;
+   //unsigned int in = threadIdx.x + blockIdx.x*blockDim.x+1;
+  //seedStripNCMask[0] = seedStripMask[0];
+  //if (seedStripNCMask[0]) nSeedStripsNC++;
+//#pragma omp parallel for reduction(+:nSeedStripsNC)
+
+if(i!=0){
+    seedStripNCMask[i] = false;
+    if (seedStripMask[i] == true) { 
+      if (stripId[i]-stripId[i-1]!=1||((stripId[i]-stripId[i-1]==1)&&!(adc[i] >= static_cast<uint8_t>( noise[i-1] * SeedThreshold)) )) {
+        seedStripNCMask[i] = true;
+    //    nSeedStripsNC += static_cast<int>(seedStripNCMask[i]);
+      }
+    } 
+  }
+else{seedStripNCMask[0] = seedStripMask[0];}
+ i += blockDim.x*gridDim.x;
+}
+}
 
 int main()
 {
@@ -143,8 +176,8 @@ int main()
   float *noise = (float *)_mm_malloc(max_strips*sizeof(float), IDEAL_ALIGNMENT);
   float *gain = (float *)_mm_malloc(max_strips*sizeof(float), IDEAL_ALIGNMENT);
   bool *bad = (bool *)_mm_malloc(max_strips*sizeof(bool), IDEAL_ALIGNMENT);
-  bool *seedStripMask = (bool *)_mm_malloc(max_strips*sizeof(bool), IDEAL_ALIGNMENT);
-  bool *seedStripNCMask = (bool *)_mm_malloc(max_strips*sizeof(bool), IDEAL_ALIGNMENT);
+  //bool *seedStripMask = (bool *)_mm_malloc(max_strips*sizeof(bool), IDEAL_ALIGNMENT);
+  //bool *seedStripNCMask = (bool *)_mm_malloc(max_strips*sizeof(bool), IDEAL_ALIGNMENT);
 
   //gpuErrchk((cudaMallocManaged((void**)adc,max_strips*sizeof(uint16_t))));
   //gpuErrchk((cudaMallocManaged((void**)noise,max_strips*sizeof(float))));
@@ -153,17 +186,16 @@ int main()
   std::ifstream digidata_in("digidata.bin", std::ofstream::in | std::ios::binary);
   int i=0;
   while (digidata_in.read((char*)&detId[i], sizeof(detId_t)).gcount() == sizeof(detId_t)) {
-    digidata_in.read((char*)&fedId[i], sizeof(fedId_t));
-    digidata_in.read((char*)&fedCh[i], sizeof(fedCh_t));
+    //digidata_in.read((char*)&fedId[i], sizeof(fedId_t));
+    //digidata_in.read((char*)&fedCh[i], sizeof(fedCh_t));
     digidata_in.read((char*)&stripId[i], sizeof(uint16_t));
     digidata_in.read((char*)&adc[i], sizeof(uint16_t));
     digidata_in.read((char*)&noise[i], sizeof(float));
     digidata_in.read((char*)&gain[i], sizeof(float));
     digidata_in.read((char*)&bad[i], sizeof(bool));
     if (bad[i])
-      std::cout<<"detid "<<detId[i]<<" fedId "<<fedId[i]<<" fedCh "<<(int)fedCh[i]<<" stripId "<<stripId[i]<<
-      " adc "<<adc[i]<<" noise "<<noise[i]<<" gain "<<gain[i]<<" bad "<<bad[i]<<std::endl;
-
+      std::cout<<"index "<<i<<" detid "<<detId[i]<<" stripId "<<stripId[i]<<
+        " adc "<<adc[i]<<" noise "<<noise[i]<<" gain "<<gain[i]<<" bad "<<bad[i]<<std::endl;
     i++;
   }
   int nStrips=i;
@@ -201,33 +233,44 @@ int main()
   float* gain_d;
   uint16_t* adc_d;
   uint16_t* stripId_d;
-  cudaMalloc((void**)&noise_d, sizeof(noise));
-  cudaMalloc((void**)&gain_d, sizeof(gain));
-  cudaMalloc((void**)&adc_d, sizeof(adc));
-  cudaMalloc((void**)&stripId_d, sizeof(stripId));
+  cudaMalloc((void**)&noise_d, max_strips*sizeof(float));
+  cudaMalloc((void**)&gain_d, max_strips*sizeof(float));
+  cudaMalloc((void**)&adc_d, max_strips*sizeof(uint16_t));
+  cudaMalloc((void**)&stripId_d, max_strips*sizeof(uint16_t));
   //cudaMalloc((void**)&nSeedStripsNC_d, max_strips*sizeof(int));
   cudaMallocManaged((void**)&nSeedStripsNC_d, nStrips*sizeof(int));
   //cudaalloc((void**)&nSeedStripsNC_out, max_strips*sizeof(int));
   //cudaMemcpy(&nSeedStripsNC_d, &nSeedStripsNC,sizeof(nSeedStripsNC),cudaMemcpyHostToDevice);
-  cudaMemcpy(noise_d, noise,sizeof(noise),cudaMemcpyHostToDevice);
-  cudaMemcpy(gain_d, gain,sizeof(gain),cudaMemcpyHostToDevice);
-  cudaMemcpy(adc_d, adc,sizeof(adc),cudaMemcpyHostToDevice);
-  cudaMemcpy(stripId_d, stripId,sizeof(stripId),cudaMemcpyHostToDevice);
-//printf("test 0: %d\n", nStrips);
-//for( int j =0; j<nStrips; j++){
-//printf("noise[%d]: %f\n",j,noise[j]);} 
-getNCSeedStrips<<<32,128>>>(nStrips,noise_d,adc_d,nSeedStripsNC_d);
-//getNCSeedStrips<<<32,128>>>(nStrips,noise_d,adc_d,SeedThreshold,nSeedStripsNC_d);
+  cudaMemcpy(noise_d, noise,max_strips*sizeof(float),cudaMemcpyHostToDevice);
+  cudaMemcpy(gain_d, gain,max_strips*sizeof(float),cudaMemcpyHostToDevice);
+  cudaMemcpy(adc_d, adc,max_strips*sizeof(uint16_t),cudaMemcpyHostToDevice);
+  cudaMemcpy(stripId_d, stripId,max_strips*sizeof(uint16_t),cudaMemcpyHostToDevice);
+
+  int* seedStripMask;
+  int* seedStripsNCMask;
+  cudaMallocManaged((void**)&seedStripMask, nStrips*sizeof(int));
+  cudaMallocManaged((void**)&seedStripsNCMask, nStrips*sizeof(int));
+
+//getNCSeedStrips<<<32,128>>>(nStrips,noise_d,adc_d,nSeedStripsNC_d);
+getNCSeedStrips<<<128,128>>>(nStrips,noise_d,adc_d,stripId_d,seedStripMask,seedStripsNCMask);
 cudaDeviceSynchronize();
+
+nSeedStripsNC=0;
+for(int l=0; l<nStrips;l++){
+nSeedStripsNC += seedStripsNCMask[l];
+//printf("mask[%d]: %d\n",l,seedStripMask[l]);
+//printf("mask[%d]: %d\n",l,nSeedStripsNC_d[l]);
+}
+printf("done %d",nSeedStripsNC);
 //std::cout<<"nStrips "<<nStrips<<"nSeedStrips "<<nSeedStrips<<"nSeedStripsNC "<<nSeedStripsNC<<std::endl;
 
 //printf("test 1:%d\n",nSeedStripsNC_d[439133]);
 //cudaMemcpy(nSeedStripsNC_out, nSeedStripsNC_d,nStrips*sizeof(int),cudaMemcpyDeviceToHost);
 
 
-for (int j=0; j< nStrips; j++){ 
-nSeedStripsNC += nSeedStripsNC_d[j];
-}
+//for (int j=0; j< nStrips; j++){ 
+//nSeedStripsNC += nSeedStripsNCMask[j];
+//}
 
 //printf("test 2");
   int *seedStripsNCIndex = (int *)_mm_malloc(nSeedStripsNC*sizeof(int), IDEAL_ALIGNMENT);
@@ -242,15 +285,29 @@ nSeedStripsNC += nSeedStripsNC_d[j];
   cudaMallocManaged((void**)&clusterNoiseSquared,nSeedStripsNC*sizeof(float));
   cudaMallocManaged((void**)&clusterADCs,nSeedStripsNC*256*sizeof(uint8_t));
   cudaMallocManaged((void**)&trueCluster,nSeedStripsNC*sizeof(bool));
+  int j=0;
+  for (int i=0; i<nStrips; i++) {
+    if (seedStripsNCMask[i] == true) {
+      seedStripsNCIndex[j] = i;
+      j++;
+    }
+  }
 
-int k =0;
-for (int j=0; j< nStrips; j++){ 
-if( nSeedStripsNC_d[j] == 1.0){
+  if (j!=nSeedStripsNC) {
+    std::cout<<"j "<<j<<"nSeedStripsNC "<<nSeedStripsNC<<std::endl;
+    exit (1);
+  }
+//for(int l=0; l<nStrips;l++){
+//printf("stripsNCMask[%d]: %d\n",l,seedStripMask[l]);
+//}
+//int k =0;
+//for (int j=0; j< nStrips; j++){ 
+//if( nSeedStripsNC_d[j] == 1.0){
 //nSeedStripsNC += 1;
-seedStripsNCIndex[k] = j;
-k++;
-}
-}
+//seedStripsNCIndex[k] = j;
+//k++;
+//}
+//}
 //printf("test 3");
 //printf("test x: %d\n",nSeedStripsNC);
 //  int j=0;
@@ -260,9 +317,8 @@ k++;
 //      j++;
 //    }
 //  }
-
-  if (k!=nSeedStripsNC) {
-    std::cout<<"k "<<k<<" nSeedStripsNC "<<nSeedStripsNC<<std::endl;
+  if (j!=nSeedStripsNC) {
+    std::cout<<"j "<<j<<" nSeedStripsNC "<<nSeedStripsNC<<std::endl;
     exit (1);
   }
 

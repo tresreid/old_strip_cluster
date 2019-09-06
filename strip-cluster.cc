@@ -3,9 +3,8 @@
 #include <algorithm>
 #include <cstdlib>
 #include <mm_malloc.h>
-#if _OPENMP
 #include <omp.h>
-#endif
+
 #define IDEAL_ALIGNMENT 64
 using detId_t = uint32_t;
 //using fedId_t = uint16_t;
@@ -43,9 +42,7 @@ int main()
   }
   int nStrips=i;
 
-#if _OPENMP
   double start = omp_get_wtime();
-#endif
   float ChannelThreshold = 2.0, SeedThreshold = 3.0, ClusterThresholdSquared = 25.0;
   uint8_t MaxSequentialHoles = 0, MaxSequentialBad = 1, MaxAdjacentBad = 0;
   bool RemoveApvShots = true;
@@ -62,6 +59,7 @@ int main()
     float noise_i = noise[i];
     uint8_t adc_i = static_cast<uint8_t>(adc[i]);
     seedStripMask[i] = (adc_i >= static_cast<uint8_t>( noise_i * SeedThreshold)) ? true:false;
+//printf("test i n a b: %d %f %d %d\n",i,noise_i,adc_i,seedStripMask[i]);
     nSeedStrips += static_cast<int>(seedStripMask[i]);
   }
 
@@ -78,7 +76,7 @@ int main()
     }
   }
 
-    //std::cout<<"nStrips "<<nStrips<<"nSeedStrips "<<nSeedStrips<<"nSeedStripsNC "<<nSeedStripsNC<<std::endl;
+  //  std::cout<<"nStrips "<<nStrips<<"nSeedStrips "<<nSeedStrips<<"nSeedStripsNC "<<nSeedStripsNC<<std::endl;
 
   int *seedStripsNCIndex = (int *)_mm_malloc(nSeedStripsNC*sizeof(int), IDEAL_ALIGNMENT);
   int *clusterLastIndexLeft = (int *)_mm_malloc(nSeedStripsNC*sizeof(int), IDEAL_ALIGNMENT);
@@ -99,29 +97,22 @@ int main()
     std::cout<<"j "<<j<<"nSeedStripsNC "<<nSeedStripsNC<<std::endl;
     exit (1);
   }
-  /*
-#pragma acc data copyin(clusterNoiseSquared[0:nSeedStripsNC],	\
-			seedStripsNCIndex[0:nSeedStripsNC],		\
-			clusterLastIndexLeft[0:nSeedStripsNC],		\
-			clusterLastIndexRight[0:nSeedStripsNC],		\
-			noise[0:nStrips],adc[0:nStrips],stripId[0:nStrips], \
-			gain[0:nStrips], bad[0:nStrips], seedStripsMask[0:nStrips], \
-			seedStripsNCMask[0:nStrips],			\
-			trueCluster[0:nSeedStripsNC],clusterADCs[0:256*nSeedStripsNC])
-  */
-
+printf("SeedStripsNC: %d\n",nSeedStripsNC);
+//for(int l=0; l<nStrips;l++){
+//printf("stripsNCMask[%d]: %d\n",l,seedStripMask[l]);
+//}
   // find the left and right bounday of the candidate cluster
   // (currently, we assume no bad strip. fix later)
-#pragma omp parallel for simd
-#pragma acc parallel loop independent
+#pragma omp parallel for
   for (int i=0; i<nSeedStripsNC; i++) {
     clusterNoiseSquared[i] = 0.0;
     int index=seedStripsNCIndex[i];
     clusterLastIndexLeft[i] = index;
     clusterLastIndexRight[i] = index;
-    //uint8_t adc_i = adc[index];
+    uint8_t adc_i = adc[index];
     float noise_i = noise[index];
     clusterNoiseSquared[i] += noise_i*noise_i;
+printf("noise i n: %d %f\n",i, noise_i*noise_i);
     // find left boundary
     int testIndex=index-1;
     while(index>0&&((stripId[clusterLastIndexLeft[i]]-stripId[testIndex]-1)>=0)&&((stripId[clusterLastIndexLeft[i]]-stripId[testIndex]-1)<=MaxSequentialHoles)){
@@ -146,11 +137,12 @@ int main()
       ++testIndex;
     }
   }
-
+for(int l=0; l<1000;l++){
+printf("clusterLIL[%d]: %d\n",l,clusterLastIndexLeft[l]);
+}
   // check if the candidate cluster is a true cluster
   // if so, do some adjustment for the adc values
-#pragma omp parallel for simd
-#pragma acc parallel loop independent
+#pragma omp parallel for
   for (int i=0; i<nSeedStripsNC; i++){
     trueCluster[i] = false;
     int left=clusterLastIndexLeft[i];
@@ -173,22 +165,15 @@ int main()
       trueCluster[i] = true;
     }
   }
-#if _OPENMP
+
   double end = omp_get_wtime();
-
-  std::cout<<"clustering time "<<end-start<<std::endl;
-#endif
-
-//#pragma acc data copyout(trueCluster[0:nSeedStripsNC],	\
-			 clusterLastIndexLeft[0:nSeedStripsNC],	\
-			 clusterLastIndexRight[0:nSeedStripsNC],	\
-			 clusterADCs[0:256*nSeedStripsNC])
+/*  
   // print out the result
   for (int i=0; i<nSeedStripsNC; i++) {
     if (trueCluster[i]){
       int index = clusterLastIndexLeft[i];
-      //std::cout<<"cluster "<<i<<" det Id "<<detId[index]<<" strip "<<stripId[clusterLastIndexLeft[i]]<<" seed strip "<<stripId[seedStripsNCIndex[i]]<<" ADC ";
-      std::cout<<" det id "<<detId[index]<<" strip "<<stripId[clusterLastIndexLeft[i]]<< ": ";
+      std::cout<<"cluster "<<i<<" det Id "<<detId[index]<<" strip "<<stripId[clusterLastIndexLeft[i]]<<" seed strip "<<stripId[seedStripsNCIndex[i]]<<" ADC ";
+      //std::cout<<" det id "<<detId[index]<<" strip "<<stripId[clusterLastIndexLeft[i]]<< ": ";
       int left=clusterLastIndexLeft[i];
       int right=clusterLastIndexRight[i];
       int size=right-left+1;
@@ -198,7 +183,9 @@ int main()
       std::cout<<std::endl;
     }
   }
-
+  
+*/
+  std::cout<<"clustering time "<<end-start<<std::endl;
 
   free(detId);
   //free(fedId);
