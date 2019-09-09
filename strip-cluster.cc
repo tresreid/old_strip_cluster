@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <mm_malloc.h>
 #include <omp.h>
+#include <sys/time.h>
 
 #define IDEAL_ALIGNMENT 64
 using detId_t = uint32_t;
@@ -12,6 +13,9 @@ using detId_t = uint32_t;
 
 int main()
 {
+double startx, endx;
+struct timeval timecheck;
+
   int max_strips = 1400000;
   detId_t *detId = (detId_t *)_mm_malloc(max_strips*sizeof(detId_t), IDEAL_ALIGNMENT);
   //  fedId_t *fedId = (fedId_t *)_mm_malloc(max_strips*sizeof(fedId_t), IDEAL_ALIGNMENT);
@@ -41,6 +45,8 @@ int main()
     i++;
   }
   int nStrips=i;
+  gettimeofday(&timecheck, NULL);
+  startx = (double)timecheck.tv_sec *1000 + (double)timecheck.tv_usec /1000;
 
   double start = omp_get_wtime();
   float ChannelThreshold = 2.0, SeedThreshold = 3.0, ClusterThresholdSquared = 25.0;
@@ -76,9 +82,9 @@ int main()
       }
     }
 }
-for (int i=0; i<nStrips;i++){
-printf("NCMask i n: %d %d\n",i, seedStripNCMask[i]); 
-}
+//for (int i=0; i<nStrips;i++){
+//printf("NCMask i n: %d %d\n",i, seedStripNCMask[i]); 
+//}
   //  std::cout<<"nStrips "<<nStrips<<"nSeedStrips "<<nSeedStrips<<"nSeedStripsNC "<<nSeedStripsNC<<std::endl;
 
   int *seedStripsNCIndex = (int *)_mm_malloc(nSeedStripsNC*sizeof(int), IDEAL_ALIGNMENT);
@@ -100,9 +106,9 @@ printf("NCMask i n: %d %d\n",i, seedStripNCMask[i]);
     std::cout<<"j "<<j<<"nSeedStripsNC "<<nSeedStripsNC<<std::endl;
     exit (1);
   }
-printf("SeedStripsNC: %d\n",nSeedStripsNC);
-//for(int l=0; l<nStrips;l++){
-//printf("stripsNCMask[%d]: %d\n",l,seedStripMask[l]);
+//printf("SeedStripsNC: %d\n",nSeedStripsNC);
+//for(int l=0; l<10000;l++){
+//printf("stripsNCMask[%d]: %d\n",l,seedStripsNCIndex[l]);
 //}
   // find the left and right bounday of the candidate cluster
   // (currently, we assume no bad strip. fix later)
@@ -170,12 +176,13 @@ printf("SeedStripsNC: %d\n",nSeedStripsNC);
   }
 
   double end = omp_get_wtime();
-/*  
+  gettimeofday(&timecheck, NULL);
+  endx = (double)timecheck.tv_sec *1000 + (double)timecheck.tv_usec/1000;
   // print out the result
   for (int i=0; i<nSeedStripsNC; i++) {
     if (trueCluster[i]){
       int index = clusterLastIndexLeft[i];
-      std::cout<<"cluster "<<i<<" det Id "<<detId[index]<<" strip "<<stripId[clusterLastIndexLeft[i]]<<" seed strip "<<stripId[seedStripsNCIndex[i]]<<" ADC ";
+      std::cout<</*"cluster "<<i<<*/" det Id "<<detId[index]<<" strip "<<stripId[clusterLastIndexLeft[i]]<<" seed strip "<<stripId[seedStripsNCIndex[i]]<<" ADC ";
       //std::cout<<" det id "<<detId[index]<<" strip "<<stripId[clusterLastIndexLeft[i]]<< ": ";
       int left=clusterLastIndexLeft[i];
       int right=clusterLastIndexRight[i];
@@ -187,8 +194,9 @@ printf("SeedStripsNC: %d\n",nSeedStripsNC);
     }
   }
   
-*/
+
   std::cout<<"clustering time "<<end-start<<std::endl;
+printf("time: %e (ms)\n",(endx-startx));
 
   free(detId);
   //free(fedId);
