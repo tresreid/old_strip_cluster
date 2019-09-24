@@ -42,6 +42,7 @@ struct timeval timecheck;
     if (bad[i])
       std::cout<<"index "<<i<<" detid "<<detId[i]<<" stripId "<<stripId[i]<<
 	" adc "<<adc[i]<<" noise "<<noise[i]<<" gain "<<gain[i]<<" bad "<<bad[i]<<std::endl;
+//std::cout<< "index " << i<<" noise "<< noise[i] <<std::endl; 
     i++;
   }
   int nStrips=i;
@@ -82,9 +83,12 @@ struct timeval timecheck;
       }
     }
 }
+
+//printf("nSeedStripsNC = %d\n",nSeedStripsNC);
 //for (int i=0; i<nStrips;i++){
 //printf("NCMask i n: %d %d\n",i, seedStripNCMask[i]); 
 //}
+
   //  std::cout<<"nStrips "<<nStrips<<"nSeedStrips "<<nSeedStrips<<"nSeedStripsNC "<<nSeedStripsNC<<std::endl;
 
   int *seedStripsNCIndex = (int *)_mm_malloc(nSeedStripsNC*sizeof(int), IDEAL_ALIGNMENT);
@@ -107,7 +111,7 @@ struct timeval timecheck;
     exit (1);
   }
 //printf("SeedStripsNC: %d\n",nSeedStripsNC);
-//for(int l=0; l<10000;l++){
+//for(int l=0; l<nSeedStripsNC;l++){
 //printf("stripsNCMask[%d]: %d\n",l,seedStripsNCIndex[l]);
 //}
   // find the left and right bounday of the candidate cluster
@@ -120,19 +124,23 @@ struct timeval timecheck;
     clusterLastIndexRight[i] = index;
     uint8_t adc_i = adc[index];
     float noise_i = noise[index];
+//    printf("index: %d, noise %d\n",index, noise_i);
     clusterNoiseSquared[i] += noise_i*noise_i;
 //printf("noise i n: %d %f\n",i, noise_i*noise_i);
     // find left boundary
     int testIndex=index-1;
-    while(index>0&&((stripId[clusterLastIndexLeft[i]]-stripId[testIndex]-1)>=0)&&((stripId[clusterLastIndexLeft[i]]-stripId[testIndex]-1)<=MaxSequentialHoles)){
+    while(testIndex>0&&((stripId[clusterLastIndexLeft[i]]-stripId[testIndex]-1)>=0)&&((stripId[clusterLastIndexLeft[i]]-stripId[testIndex]-1)<=MaxSequentialHoles)){
       float testNoise = noise[testIndex];
       uint8_t testADC = adc[testIndex];
       if (testADC > static_cast<uint8_t>(testNoise * ChannelThreshold)) {
 	--clusterLastIndexLeft[i];
 	clusterNoiseSquared[i] += testNoise*testNoise;
+       //printf("pass: index: %d, testADC %d, testNoise %f, result %d\n",index,testADC, testNoise, clusterLastIndexLeft[i]);
       }
       --testIndex;
+      //printf("index %d, indexL %d, testIndexL %d, testNoise: %f, testADC: %d\n",index,testIndex,clusterLastIndexLeft[i],testNoise, testADC);
     }
+//printf("xxindex %d, testIndexL %d, 1: %d, 2:%d, stripID_indexL: %d, stripID_testIndex: %d\n",index, testIndex,(stripId[clusterLastIndexLeft[i]]-stripId[testIndex]-1)>=0,(stripId[clusterLastIndexLeft[i]]-stripId[testIndex]-1)<=MaxSequentialHoles, stripId[clusterLastIndexLeft[i]],stripId[testIndex]);
 
     // find right boundary
     testIndex=index+1;
@@ -146,8 +154,9 @@ struct timeval timecheck;
       ++testIndex;
     }
   }
-//for(int l=0; l<1000;l++){
+//for(int l=0; l<nSeedStripsNC;l++){
 //printf("clusterLIL[%d]: %d\n",l,clusterLastIndexLeft[l]);
+//printf("clusterLIR[%d]: %d\n",l,clusterLastIndexRight[l]);
 //}
   // check if the candidate cluster is a true cluster
   // if so, do some adjustment for the adc values
@@ -182,8 +191,8 @@ struct timeval timecheck;
   for (int i=0; i<nSeedStripsNC; i++) {
     if (trueCluster[i]){
       int index = clusterLastIndexLeft[i];
-      std::cout<</*"cluster "<<i<<*/" det Id "<<detId[index]<<" strip "<<stripId[clusterLastIndexLeft[i]]<<" seed strip "<<stripId[seedStripsNCIndex[i]]<<" ADC ";
-      //std::cout<<" det id "<<detId[index]<<" strip "<<stripId[clusterLastIndexLeft[i]]<< ": ";
+      //std::cout<<"cluster "<<i<<" det Id "<<detId[index]<<" strip "<<stripId[clusterLastIndexLeft[i]]<<" seed strip "<<stripId[seedStripsNCIndex[i]]<<" ADC ";
+      std::cout<<" det id "<<detId[index]<<" strip "<<stripId[clusterLastIndexLeft[i]]<< ": ";
       int left=clusterLastIndexLeft[i];
       int right=clusterLastIndexRight[i];
       int size=right-left+1;
